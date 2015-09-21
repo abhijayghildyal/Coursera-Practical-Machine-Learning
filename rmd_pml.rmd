@@ -1,0 +1,112 @@
+---
+title: "rmd_pml"
+output: html_document
+---
+
+# **Practical Machine Learning**
+
+## **Course Project: Writeup**
+
+We use the following libraries for the predictive model
+```{r}
+library(caret)
+library(randomForest)
+```
+
+Set working directory for loading data: setwd("Your working directory")  
+
+Now load the training and test data
+
+```{r}
+training <- read.csv("pml-training.csv", na.strings=c("#DIV/0!","NA",""))
+testing<-read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))  
+```
+
+Set seed
+```{r}
+set.seed(10)
+```
+
+Partition your training data. This is done so that we can check the accuracy of our predicitve model using a confusion matrix
+```{r}
+trainingPartition <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+
+newTraining <- training[trainingPartition, ]
+newTesting <- training[-trainingPartition, ]
+```
+
+Steps taken to clean the data: 
+
+i) Clear the features which have a near-zero variance
+
+```{r}
+nzv<- nearZeroVar(newTraining,saveMetrics = T)
+newTraining <- newTraining[,nzv$nzv==FALSE]
+```
+Save metrics: A logical. If false, the positions of the zero- or near-zero predictors is returned. If true, a data frame with predictor information is returned.
+
+ii) Check the features for relevance manually
+The starting five features are not relevant to the predicitve model so remove them
+```{r}
+newTraining <- newTraining[,-(1:5)]
+```
+
+iii) Check for features which have a high count of na values and remove them
+
+```{r}
+#Check for the % of na values in each feature
+for(i in 1:length(newTraining)){
+  percentageOfNa <- sum(is.na(newTraining[,i]))/nrow(newTraining[i])
+  if(percentageOfNa > 0) print(paste0(names(newTraining[i]),": ",percentageOfNa*100))
+}
+
+#Remove the columns with more than 70% na values
+toRemoveFeauresList <- vector()
+for(i in 1:length(newTraining)){
+  percentageOfNa <- sum(is.na(newTraining[,i]))/nrow(newTraining[i])
+  if(percentageOfNa >= 0.7) toRemoveFeauresList <- c(toRemoveFeauresList,i)
+}
+
+#Features removed
+newTraining <- newTraining[,-toRemoveFeauresList ]
+
+#check the features in newTraining data after removal
+names(newTraining)
+```
+
+Now we clean our testing data according to the training data
+
+```{r}
+#Select the same features for new testing data
+columnNames <- colnames(newTraining)
+newTesting <- newTesting[,columnNames]
+
+#Select the same features for testing data
+columnNames <- colnames(newTraining[,-(length(newTraining))])
+# newTraining[,-(length(newTraining))] because the last variable is the 'classe' variable
+testing <- testing[,columnNames]
+```
+
+-------------------------------------------------------------------------------------------------------------------------
+
+Using Random Forest for prediction
+
+```{r}
+modelFit <- randomForest(classe ~. , data=newTraining)
+modelFit
+```
+
+Then we predict on the newTesting data to check the accuracy of our predictive model
+
+```{r}
+prediction <- predict(modelFit, newTesting, type = "class")
+confusionMatrix(prediction, newTesting$classe)
+confusionMatrix(prediction, newTesting$classe)
+```
+
+Lastly we run our model on the testing data to get final results
+
+```{r}
+finalPrediction <- predict(modelFit, testing, type = "class")
+finalPrediction
+```
